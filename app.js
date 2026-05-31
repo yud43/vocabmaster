@@ -1,3 +1,23 @@
+// ============ SPEECH ============
+function speak(text, lang = 'en-US') {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.rate = 0.85;
+    // Try to pick a good voice
+    const voices = speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.lang.startsWith(lang.slice(0, 2)) && v.localService);
+    if (preferred) u.voice = preferred;
+    speechSynthesis.speak(u);
+}
+
+// Preload voices (needed on some browsers)
+if ('speechSynthesis' in window) {
+    speechSynthesis.getVoices();
+    speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+}
+
 // ============ DATA LAYER ============
 const DB_KEY = 'vocabmaster_words';
 
@@ -130,10 +150,11 @@ function renderWords() {
         </div>
         ${filtered.map(w => `
             <div class="word-item">
-                <div class="word-info">
+                <div class="word-info" onclick="speak('${w.english.replace(/'/g, "\\'")}')">
                     <div class="word-en">
                         ${w.english}
                         ${w.isMastered ? '<span class="mastered-icon">✅</span>' : ''}
+                        <span class="speak-icon">🔊</span>
                     </div>
                     <div class="word-vn">${w.vietnamese}</div>
                     ${w.example ? `<div class="word-ex">${w.example}</div>` : ''}
@@ -205,6 +226,7 @@ function renderFlashcard() {
                 <div class="fc-flag">🇬🇧</div>
                 <div class="fc-hint">Chạm để lật</div>
             `}
+            <button class="speak-btn" onclick="event.stopPropagation();speak('${w.english.replace(/'/g, "\\'")}')">🔊 Phát âm</button>
         </div>
 
         <div class="fc-controls">
@@ -346,7 +368,7 @@ function renderQuizQuestion(container) {
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
 
         <p class="quiz-question-text">${q.questionLabel}</p>
-        <div class="quiz-word">${q.question}</div>
+        <div class="quiz-word">${q.question} <button class="speak-btn-sm" onclick="speak('${q.word.english.replace(/'/g, "\\'")}')">🔊</button></div>
 
         <div class="quiz-answers">
             ${q.options.map((opt, i) => {
