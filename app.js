@@ -36,6 +36,7 @@ if ('speechSynthesis' in window) {
 
 // ============ DATA LAYER ============
 const DB_KEY = 'vocabmaster_words';
+const LESSONS_KEY = 'vocabmaster_lessons';
 
 function loadWords() {
     return JSON.parse(localStorage.getItem(DB_KEY) || '[]');
@@ -45,7 +46,15 @@ function saveWords(words) {
     localStorage.setItem(DB_KEY, JSON.stringify(words));
 }
 
-function addWord(english, vietnamese, example = '', phonetic = '') {
+function loadLessons() {
+    return JSON.parse(localStorage.getItem(LESSONS_KEY) || '[]');
+}
+
+function saveLessons(lessons) {
+    localStorage.setItem(LESSONS_KEY, JSON.stringify(lessons));
+}
+
+function addWord(english, vietnamese, example = '', phonetic = '', lessonId = '') {
     const words = loadWords();
     words.unshift({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -53,6 +62,7 @@ function addWord(english, vietnamese, example = '', phonetic = '') {
         vietnamese: vietnamese.trim(),
         example: example.trim(),
         phonetic: phonetic,
+        lessonId: lessonId,
         isMastered: false,
         createdAt: new Date().toISOString(),
         reviewCount: 0
@@ -114,6 +124,9 @@ let quizStarted = false;
 let quizFinished = false;
 let quizCount = 10;
 let quizMode = 'en2vn';
+let selectedLessonId = null; // for filtering by lesson
+let editingLessonId = null; // for editing lesson
+let lessonDetailId = null; // for viewing lesson detail
 
 // ============ NAVIGATION ============
 document.querySelectorAll('.tab').forEach(tab => {
@@ -128,7 +141,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 function renderCurrentPage() {
-    const titles = { words: 'Từ vựng', flashcard: 'Flashcard', quiz: 'Quiz', stats: 'Thống kê' };
+    const titles = { words: 'Từ vựng', lessons: 'Bài học', flashcard: 'Flashcard', quiz: 'Quiz', stats: 'Thống kê' };
     document.getElementById('page-title').textContent = titles[currentPage];
     const actions = document.getElementById('header-actions');
     actions.innerHTML = '';
@@ -140,9 +153,18 @@ function renderCurrentPage() {
             <button class="header-btn" onclick="openModal('batch')" title="Nhập danh sách">☰</button>
         `;
         renderWords();
+    } else if (currentPage === 'lessons') {
+        actions.innerHTML = `<button class="header-btn" onclick="openLessonModal()" title="Tạo bài học">+</button>`;
+        renderLessons();
     } else if (currentPage === 'flashcard') {
         const icon = fcUnmasteredOnly ? '⊘' : '○';
-        actions.innerHTML = `<button class="header-btn" onclick="toggleFcFilter()" title="Lọc">${icon}</button>`;
+        let fcActions = '';
+        if (selectedLessonId) {
+            const lesson = loadLessons().find(l => l.id === selectedLessonId);
+            fcActions += `<button class="header-btn" onclick="selectedLessonId=null;fcIndex=0;fcFlipped=false;renderCurrentPage()" title="Bỏ lọc" style="font-size:12px;width:auto;padding:0 10px;border-radius:14px">✕ ${lesson ? lesson.name : ''}</button>`;
+        }
+        fcActions += `<button class="header-btn" onclick="toggleFcFilter()" title="Lọc">${icon}</button>`;
+        actions.innerHTML = fcActions;
         renderFlashcard();
     } else if (currentPage === 'quiz') {
         renderQuiz();
@@ -208,7 +230,8 @@ function renderWords() {
 
 // ============ FLASHCARD ============
 function getFlashcardWords() {
-    const words = loadWords();
+    let words = loadWords();
+    if (selectedLessonId) words = words.filter(w => w.lessonId === selectedLessonId);
     return fcUnmasteredOnly ? words.filter(w => !w.isMastered) : words;
 }
 
@@ -312,8 +335,16 @@ function prevCard() {
 
 // ============ QUIZ ============
 function renderQuiz() {
-    const words = loadWords();
+    let words = loadWords();
+    if (selectedLessonId) words = words.filter(w => w.lessonId === selectedLessonId);
     const container = document.getElementById('page-quiz');
+
+    // Show lesson filter info
+    if (selectedLessonId) {
+        const lesson = loadLessons().find(l => l.id === selectedLessonId);
+        const actions = document.getElementById('header-actions');
+        actions.innerHTML = `<button class="header-btn" onclick="selectedLessonId=null;quizStarted=false;renderCurrentPage()" title="Bỏ lọc" style="font-size:12px;width:auto;padding:0 10px;border-radius:14px">✕ ${lesson ? lesson.name : ''}</button>`;
+    }
 
     if (words.length < 4) {
         container.innerHTML = `
@@ -361,14 +392,16 @@ function renderQuizSetup(container, words) {
 }
 
 function startQuiz() {
-    const words = loadWords();
+    let words = loadWords();
+    if (selectedLessonId) words = words.filter(w => w.lessonId === selectedLessonId);
+    const allWords = loadWords(); // need all words for wrong answer options
     const count = Math.min(quizCount, words.length);
     const shuffled = [...words].sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, count);
 
     quizQuestions = selected.map(word => {
         const isEn2Vn = quizMode === 'en2vn' ? true : quizMode === 'vn2en' ? false : Math.random() > 0.5;
-        const wrongAnswers = words
+        const wrongAnswers = allWords
             .filter(w => w.id !== word.id)
             .sort(() => Math.random() - 0.5)
             .slice(0, 3)
@@ -526,14 +559,197 @@ function renderStats() {
     `;
 }
 
+// ============ LESSONS ============
+function renderLessons() {
+    const lessons = loadLessons();
+    const words = loadWords();
+    const container = document.getElementById('page-lessons');
+
+    if (lessonDetailId) {
+        renderLessonDetail(container);
+        return;
+    }
+
+    if (lessons.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="icon">📂</div>
+                <h2>Chưa có bài học nào</h2>
+                <p>Tạo bài học để nhóm từ vựng<br>theo chủ đề!</p>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="openLessonModal()">+ Tạo bài học</button>
+                </div>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = `
+        ${lessons.map(l => {
+            const lessonWords = words.filter(w => w.lessonId === l.id);
+            const masteredCount = lessonWords.filter(w => w.isMastered).length;
+            const pct = lessonWords.length > 0 ? Math.round(masteredCount / lessonWords.length * 100) : 0;
+            return `
+                <div class="lesson-card" onclick="openLessonDetail('${l.id}')">
+                    <div class="lesson-card-header">
+                        <div class="lesson-card-info">
+                            <div class="lesson-card-name">${l.name}</div>
+                            ${l.description ? `<div class="lesson-card-desc">${l.description}</div>` : ''}
+                        </div>
+                        <div class="lesson-card-actions">
+                            <button class="word-action-btn" onclick="event.stopPropagation();openLessonModal('${l.id}')">✏️</button>
+                            <button class="word-action-btn" onclick="event.stopPropagation();deleteLesson('${l.id}')">🗑</button>
+                        </div>
+                    </div>
+                    <div class="lesson-card-footer">
+                        <span class="lesson-card-count">${lessonWords.length} từ</span>
+                        <div class="lesson-progress-mini">
+                            <div class="lesson-progress-bar"><div class="fill" style="width:${pct}%"></div></div>
+                            <span class="lesson-pct">${pct}%</span>
+                        </div>
+                    </div>
+                    <div class="lesson-card-btns">
+                        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();studyLesson('${l.id}','flashcard')">🃏 Flashcard</button>
+                        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();studyLesson('${l.id}','quiz')">🧠 Quiz</button>
+                    </div>
+                </div>`;
+        }).join('')}
+    `;
+}
+
+function renderLessonDetail(container) {
+    const lessons = loadLessons();
+    const lesson = lessons.find(l => l.id === lessonDetailId);
+    if (!lesson) { lessonDetailId = null; renderLessons(); return; }
+    const words = loadWords().filter(w => w.lessonId === lessonDetailId);
+    const mastered = words.filter(w => w.isMastered).length;
+
+    document.getElementById('page-title').textContent = lesson.name;
+    const actions = document.getElementById('header-actions');
+    actions.innerHTML = `<button class="header-btn" onclick="lessonDetailId=null;renderCurrentPage()" title="Quay lại">←</button>`;
+
+    container.innerHTML = `
+        <div class="summary-bar">
+            <span>📝 ${words.length} từ</span>
+            <span style="color:var(--green)">✅ ${mastered} đã thuộc</span>
+        </div>
+        <div class="btn-row" style="margin-bottom:12px">
+            <button class="btn btn-secondary btn-sm" onclick="studyLesson('${lessonDetailId}','flashcard')">🃏 Flashcard</button>
+            <button class="btn btn-secondary btn-sm" onclick="studyLesson('${lessonDetailId}','quiz')">🧠 Quiz</button>
+            <button class="btn btn-primary btn-sm" onclick="openModal('add');document.getElementById('input-lesson').value='${lessonDetailId}'">+ Thêm từ</button>
+        </div>
+        ${words.length === 0 ? `<div class="empty-state"><p>Chưa có từ nào trong bài học này</p></div>` : ''}
+        ${words.map(w => `
+            <div class="word-item">
+                <div class="word-info" onclick="speak('${w.english.replace(/'/g, "\\'")}')">
+                    <div class="word-en">
+                        ${w.english}
+                        ${w.phonetic ? `<span class="word-phonetic">${w.phonetic}</span>` : ''}
+                        ${w.isMastered ? '<span class="mastered-icon">✅</span>' : ''}
+                        <span class="speak-icon">🔊</span>
+                    </div>
+                    <div class="word-vn">${w.vietnamese}</div>
+                    ${w.example ? `<div class="word-ex">${w.example}</div>` : ''}
+                </div>
+                <div class="word-actions">
+                    <button class="word-action-btn" onclick="toggleMastered('${w.id}');renderLessons()">${w.isMastered ? '⭐' : '☆'}</button>
+                    <button class="word-action-btn" onclick="if(confirm('Xoá từ này?')){deleteWord('${w.id}');renderLessons()}">🗑</button>
+                </div>
+            </div>
+        `).join('')}
+    `;
+}
+
+function openLessonDetail(id) {
+    lessonDetailId = id;
+    renderLessons();
+}
+
+function openLessonModal(id) {
+    editingLessonId = id || null;
+    const lessons = loadLessons();
+    const lesson = id ? lessons.find(l => l.id === id) : null;
+
+    document.getElementById('modal-lesson-title').textContent = lesson ? 'Sửa bài học' : 'Tạo bài học';
+    document.getElementById('input-lesson-name').value = lesson ? lesson.name : '';
+    document.getElementById('input-lesson-desc').value = lesson ? (lesson.description || '') : '';
+    openModal('lesson');
+    setTimeout(() => document.getElementById('input-lesson-name').focus(), 100);
+}
+
+function saveLesson() {
+    const name = document.getElementById('input-lesson-name').value.trim();
+    const desc = document.getElementById('input-lesson-desc').value.trim();
+    if (!name) return;
+
+    const lessons = loadLessons();
+    if (editingLessonId) {
+        const lesson = lessons.find(l => l.id === editingLessonId);
+        if (lesson) { lesson.name = name; lesson.description = desc; }
+    } else {
+        lessons.push({
+            id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            name,
+            description: desc,
+            createdAt: new Date().toISOString()
+        });
+    }
+    saveLessons(lessons);
+    editingLessonId = null;
+    closeModal();
+    renderCurrentPage();
+}
+
+function deleteLesson(id) {
+    if (!confirm('Xoá bài học này? Các từ vựng sẽ không bị xoá.')) return;
+    const lessons = loadLessons().filter(l => l.id !== id);
+    saveLessons(lessons);
+    // Remove lesson assignment from words
+    const words = loadWords();
+    words.forEach(w => { if (w.lessonId === id) w.lessonId = ''; });
+    saveWords(words);
+    if (lessonDetailId === id) lessonDetailId = null;
+    renderCurrentPage();
+}
+
+function studyLesson(lessonId, mode) {
+    selectedLessonId = lessonId;
+    if (mode === 'flashcard') {
+        fcIndex = 0;
+        fcFlipped = false;
+        currentPage = 'flashcard';
+    } else {
+        quizStarted = false;
+        quizFinished = false;
+        currentPage = 'quiz';
+    }
+    document.querySelectorAll('.tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.page === currentPage);
+    });
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(`page-${currentPage}`).classList.add('active');
+    renderCurrentPage();
+}
+
+function populateLessonSelect() {
+    const lessons = loadLessons();
+    const options = '<option value="">-- Không chọn --</option>' +
+        lessons.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+    const sel1 = document.getElementById('input-lesson');
+    const sel2 = document.getElementById('batch-lesson');
+    if (sel1) sel1.innerHTML = options;
+    if (sel2) sel2.innerHTML = options;
+}
+
 // ============ MODALS ============
 function openModal(type) {
     document.getElementById('modal-overlay').classList.remove('hidden');
     document.getElementById(`modal-${type}`).classList.remove('hidden');
     if (type === 'add') {
+        populateLessonSelect();
         setTimeout(() => document.getElementById('input-english').focus(), 100);
     }
     if (type === 'batch') {
+        populateLessonSelect();
         document.getElementById('input-batch').value = '';
         document.getElementById('batch-count').textContent = '';
     }
@@ -542,22 +758,25 @@ function openModal(type) {
 function closeModal() {
     document.getElementById('modal-overlay').classList.add('hidden');
     document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
-    // Clear add form
     document.getElementById('input-english').value = '';
     document.getElementById('input-vietnamese').value = '';
     document.getElementById('input-example').value = '';
+    document.getElementById('input-lesson').value = '';
+    document.getElementById('input-lesson-name').value = '';
+    document.getElementById('input-lesson-desc').value = '';
 }
 
 async function saveWord() {
     const en = document.getElementById('input-english').value.trim();
     const vn = document.getElementById('input-vietnamese').value.trim();
     const ex = document.getElementById('input-example').value.trim();
+    const lessonId = document.getElementById('input-lesson').value;
     if (!en || !vn) return;
     const btn = document.getElementById('btn-save');
     btn.textContent = '⏳';
     btn.disabled = true;
     const phonetic = await fetchPhonetic(en);
-    addWord(en, vn, ex, phonetic);
+    addWord(en, vn, ex, phonetic, lessonId);
     btn.textContent = 'Lưu';
     btn.disabled = false;
     closeModal();
@@ -588,11 +807,11 @@ function parseBatch(text) {
 
 async function importWords() {
     const text = document.getElementById('input-batch').value;
+    const lessonId = document.getElementById('batch-lesson').value;
     const parsed = parseBatch(text);
     if (parsed.length === 0) return;
-    // Fetch phonetics in parallel
     const phonetics = await Promise.all(parsed.map(w => fetchPhonetic(w.english)));
-    parsed.forEach((w, i) => addWord(w.english, w.vietnamese, w.example, phonetics[i]));
+    parsed.forEach((w, i) => addWord(w.english, w.vietnamese, w.example, phonetics[i], lessonId));
     closeModal();
     alert(`Đã nhập ${parsed.length} từ mới!`);
     renderCurrentPage();

@@ -23,6 +23,7 @@
         <!-- Pages -->
         <main id="main">
             <div id="page-words" class="page active"></div>
+            <div id="page-lessons" class="page"></div>
             <div id="page-flashcard" class="page"></div>
             <div id="page-quiz" class="page"></div>
             <div id="page-stats" class="page"></div>
@@ -33,6 +34,10 @@
             <button class="tab active" data-page="words">
                 <span class="tab-icon">📚</span>
                 <span class="tab-label">Từ vựng</span>
+            </button>
+            <button class="tab" data-page="lessons">
+                <span class="tab-icon">📂</span>
+                <span class="tab-label">Bài học</span>
             </button>
             <button class="tab" data-page="flashcard">
                 <span class="tab-icon">🃏</span>
@@ -65,6 +70,10 @@
             <input type="text" id="input-vietnamese" placeholder="quả táo">
             <label>Ví dụ (tuỳ chọn)</label>
             <input type="text" id="input-example" placeholder="I eat an apple every day">
+            <label>Bài học (tuỳ chọn)</label>
+            <select id="input-lesson">
+                <option value="">-- Không chọn --</option>
+            </select>
         </div>
     </div>
 
@@ -75,7 +84,11 @@
             <button onclick="importWords()" class="primary">Nhập</button>
         </div>
         <div class="modal-body">
-            <p class="hint">Mỗi dòng một từ, phân cách bằng <b>-</b> hoặc <b>:</b></p>
+            <label>Thêm vào bài học</label>
+            <select id="batch-lesson">
+                <option value="">-- Không chọn --</option>
+            </select>
+            <p class="hint" style="margin-top:12px">Mỗi dòng một từ, phân cách bằng <b>-</b> hoặc <b>:</b></p>
             <div class="example-box">
                 apple - quả táo<br>
                 banana : quả chuối<br>
@@ -83,6 +96,20 @@
             </div>
             <textarea id="input-batch" rows="8" placeholder="Nhập danh sách từ vựng..."></textarea>
             <p id="batch-count" class="hint"></p>
+        </div>
+    </div>
+
+    <div id="modal-lesson" class="modal hidden">
+        <div class="modal-header">
+            <button onclick="closeModal()">Huỷ</button>
+            <h2 id="modal-lesson-title">Tạo bài học</h2>
+            <button onclick="saveLesson()" class="primary">Lưu</button>
+        </div>
+        <div class="modal-body">
+            <label>Tên bài học</label>
+            <input type="text" id="input-lesson-name" placeholder="VD: Animals, Food, Travel...">
+            <label>Mô tả (tuỳ chọn)</label>
+            <input type="text" id="input-lesson-desc" placeholder="Mô tả ngắn về bài học">
         </div>
     </div>
 
