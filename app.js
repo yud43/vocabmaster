@@ -61,6 +61,24 @@ function addWord(english, vietnamese, example = '', phonetic = '') {
     return words;
 }
 
+async function refreshAllPhonetics() {
+    const words = loadWords();
+    const toUpdate = words.filter(w => !w.phonetic);
+    if (toUpdate.length === 0) { alert('Tất cả từ đã có phiên âm!'); return; }
+    let updated = 0;
+    // Process in batches of 5 to avoid rate limiting
+    for (let i = 0; i < toUpdate.length; i += 5) {
+        const batch = toUpdate.slice(i, i + 5);
+        const results = await Promise.all(batch.map(w => fetchPhonetic(w.english)));
+        batch.forEach((w, j) => {
+            if (results[j]) { w.phonetic = results[j]; updated++; }
+        });
+    }
+    saveWords(words);
+    alert(`Đã cập nhật phiên âm cho ${updated}/${toUpdate.length} từ!`);
+    renderCurrentPage();
+}
+
 function deleteWord(id) {
     const words = loadWords().filter(w => w.id !== id);
     saveWords(words);
@@ -117,6 +135,7 @@ function renderCurrentPage() {
 
     if (currentPage === 'words') {
         actions.innerHTML = `
+            <button class="header-btn" onclick="refreshAllPhonetics()" title="Cập nhật phiên âm">🔤</button>
             <button class="header-btn" onclick="openModal('add')" title="Thêm từ">+</button>
             <button class="header-btn" onclick="openModal('batch')" title="Nhập danh sách">☰</button>
         `;
