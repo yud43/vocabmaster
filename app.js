@@ -1,3 +1,19 @@
+// ============ PHONETICS API ============
+async function fetchPhonetic(word) {
+    try {
+        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+        if (!res.ok) return '';
+        const data = await res.json();
+        if (!data[0]) return '';
+        // Get IPA phonetic
+        const phonetics = data[0].phonetics || [];
+        const withText = phonetics.find(p => p.text) || {};
+        return withText.text || data[0].phonetic || '';
+    } catch {
+        return '';
+    }
+}
+
 // ============ SPEECH ============
 function speak(text, lang = 'en-US') {
     if (!('speechSynthesis' in window)) return;
@@ -29,13 +45,14 @@ function saveWords(words) {
     localStorage.setItem(DB_KEY, JSON.stringify(words));
 }
 
-function addWord(english, vietnamese, example = '') {
+function addWord(english, vietnamese, example = '', phonetic = '') {
     const words = loadWords();
     words.unshift({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
         english: english.trim(),
         vietnamese: vietnamese.trim(),
         example: example.trim(),
+        phonetic: phonetic,
         isMastered: false,
         createdAt: new Date().toISOString(),
         reviewCount: 0
@@ -153,6 +170,7 @@ function renderWords() {
                 <div class="word-info" onclick="speak('${w.english.replace(/'/g, "\\'")}')">
                     <div class="word-en">
                         ${w.english}
+                        ${w.phonetic ? `<span class="word-phonetic">${w.phonetic}</span>` : ''}
                         ${w.isMastered ? '<span class="mastered-icon">✅</span>' : ''}
                         <span class="speak-icon">🔊</span>
                     </div>
@@ -223,6 +241,7 @@ function renderFlashcard() {
                 <div class="fc-flag">🇻🇳</div>
             ` : `
                 <div class="fc-word">${w.english}</div>
+                ${w.phonetic ? `<div class="fc-phonetic">${w.phonetic}</div>` : ''}
                 <div class="fc-flag">🇬🇧</div>
                 <div class="fc-hint">Chạm để lật</div>
             `}
@@ -369,6 +388,7 @@ function renderQuizQuestion(container) {
 
         <p class="quiz-question-text">${q.questionLabel}</p>
         <div class="quiz-word">${q.question} <button class="speak-btn-sm" onclick="speak('${q.word.english.replace(/'/g, "\\'")}')">🔊</button></div>
+        ${q.word.phonetic ? `<div class="quiz-phonetic">${q.word.phonetic}</div>` : ''}
 
         <div class="quiz-answers">
             ${q.options.map((opt, i) => {
@@ -509,12 +529,18 @@ function closeModal() {
     document.getElementById('input-example').value = '';
 }
 
-function saveWord() {
+async function saveWord() {
     const en = document.getElementById('input-english').value.trim();
     const vn = document.getElementById('input-vietnamese').value.trim();
     const ex = document.getElementById('input-example').value.trim();
     if (!en || !vn) return;
-    addWord(en, vn, ex);
+    const btn = document.getElementById('btn-save');
+    btn.textContent = '⏳';
+    btn.disabled = true;
+    const phonetic = await fetchPhonetic(en);
+    addWord(en, vn, ex, phonetic);
+    btn.textContent = 'Lưu';
+    btn.disabled = false;
     closeModal();
     renderCurrentPage();
 }
@@ -541,11 +567,13 @@ function parseBatch(text) {
     }).filter(Boolean);
 }
 
-function importWords() {
+async function importWords() {
     const text = document.getElementById('input-batch').value;
     const parsed = parseBatch(text);
     if (parsed.length === 0) return;
-    parsed.forEach(w => addWord(w.english, w.vietnamese, w.example));
+    // Fetch phonetics in parallel
+    const phonetics = await Promise.all(parsed.map(w => fetchPhonetic(w.english)));
+    parsed.forEach((w, i) => addWord(w.english, w.vietnamese, w.example, phonetics[i]));
     closeModal();
     alert(`Đã nhập ${parsed.length} từ mới!`);
     renderCurrentPage();

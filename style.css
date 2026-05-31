@@ -664,3 +664,27 @@ main {
 }
 
 .speak-btn-sm:active { opacity: 1; }
+
+.word-phonetic {
+    font-size: 13px;
+    color: var(--primary);
+    font-weight: 400;
+    font-style: italic;
+}
+
+.fc-phonetic {
+    font-size: 18px;
+    color: var(--primary);
+    font-style: italic;
+    margin-top: -4px;
+    margin-bottom: 4px;
+}
+
+.quiz-phonetic {
+    text-align: center;
+    font-size: 16px;
+    color: var(--primary);
+    font-style: italic;
+    margin-top: -20px;
+    margin-bottom: 20px;
+}
