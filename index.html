@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="VocabMaster">
+    <meta name="theme-color" content="#4f46e5">
+    <title>VocabMaster</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header id="header">
+            <h1 id="page-title">Từ vựng</h1>
+            <div id="header-actions"></div>
+        </header>
+
+        <!-- Pages -->
+        <main id="main">
+            <div id="page-words" class="page active"></div>
+            <div id="page-flashcard" class="page"></div>
+            <div id="page-quiz" class="page"></div>
+            <div id="page-stats" class="page"></div>
+        </main>
+
+        <!-- Tab Bar -->
+        <nav id="tabbar">
+            <button class="tab active" data-page="words">
+                <span class="tab-icon">📚</span>
+                <span class="tab-label">Từ vựng</span>
+            </button>
+            <button class="tab" data-page="flashcard">
+                <span class="tab-icon">🃏</span>
+                <span class="tab-label">Flashcard</span>
+            </button>
+            <button class="tab" data-page="quiz">
+                <span class="tab-icon">🧠</span>
+                <span class="tab-label">Quiz</span>
+            </button>
+            <button class="tab" data-page="stats">
+                <span class="tab-icon">📊</span>
+                <span class="tab-label">Thống kê</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="hidden" onclick="closeModal()"></div>
+
+    <div id="modal-add" class="modal hidden">
+        <div class="modal-header">
+            <button onclick="closeModal()">Huỷ</button>
+            <h2>Thêm từ mới</h2>
+            <button onclick="saveWord()" id="btn-save" class="primary">Lưu</button>
+        </div>
+        <div class="modal-body">
+            <label>Tiếng Anh</label>
+            <input type="text" id="input-english" placeholder="apple" autocapitalize="none" autocorrect="off">
+            <label>Nghĩa tiếng Việt</label>
+            <input type="text" id="input-vietnamese" placeholder="quả táo">
+            <label>Ví dụ (tuỳ chọn)</label>
+            <input type="text" id="input-example" placeholder="I eat an apple every day">
+        </div>
+    </div>
+
+    <div id="modal-batch" class="modal hidden">
+        <div class="modal-header">
+            <button onclick="closeModal()">Huỷ</button>
+            <h2>Nhập danh sách</h2>
+            <button onclick="importWords()" class="primary">Nhập</button>
+        </div>
+        <div class="modal-body">
+            <p class="hint">Mỗi dòng một từ, phân cách bằng <b>-</b> hoặc <b>:</b></p>
+            <div class="example-box">
+                apple - quả táo<br>
+                banana : quả chuối<br>
+                cat - con mèo - I have a cat
+            </div>
+            <textarea id="input-batch" rows="8" placeholder="Nhập danh sách từ vựng..."></textarea>
+            <p id="batch-count" class="hint"></p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
